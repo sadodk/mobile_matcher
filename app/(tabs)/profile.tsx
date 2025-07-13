@@ -1,12 +1,20 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { router } from 'expo-router';
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Button, View } from 'react-native';
 
-const profile = () => {
+export default function Profile() {
+	const { logout } = useAuth();
+
+	const handleLogout = async () => {
+		await logout();
+		router.replace('/(auth)');
+	};
+
 	return (
-		<View>
-			<Text>profile</Text>
+		<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+			<Button title="Logout" onPress={handleLogout} />
+			{/* Your profile content */}
 		</View>
 	);
-};
-
-export default profile;
+}

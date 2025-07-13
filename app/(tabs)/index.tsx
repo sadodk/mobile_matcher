@@ -4,9 +4,9 @@ import { icons } from '@/constants/icons';
 import { images } from '@/constants/images';
 import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, Image, Text, View } from 'react-native';
-import { fetchMovies } from '../api/api_imdb';
-import { getTrendingMovies } from '../api/appwrite';
-import useFetch from '../api/useFetch';
+import { fetchMovies } from '../../api/api_imdb';
+import { getTrendingMovies } from '../../api/appwrite';
+import useFetch from '../../api/useFetch';
 
 export default function Index() {
 	const router = useRouter();

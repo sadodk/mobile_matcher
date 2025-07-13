@@ -2,8 +2,8 @@ import { icons } from '@/constants/icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { fetchMovieDetails } from '../api/api_imdb';
-import useFetch from '../api/useFetch';
+import { fetchMovieDetails } from '../../api/api_imdb';
+import useFetch from '../../api/useFetch';
 
 interface MovieInfoProps {
 	label: string;

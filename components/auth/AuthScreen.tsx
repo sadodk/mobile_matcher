@@ -10,15 +10,20 @@ import {
 	View,
 } from 'react-native';
 
-import { login, signup, testMatchEndpoint } from '../../api/authApi';
+import { login, signup, testMatchEndpoint } from '@/api/authApi';
+import { storeAuthToken } from '@/utils/auth';
 import GenderPicker from './GenderPicker';
 import LoginScreen from './LoginScreen';
 import ProfileView from './ProfileView';
 import SignupScreen from './SignupScreen';
 
-import { decodeJwt } from '../../utils/jwt';
+import decodeJwt from '@/utils/jwt';
 
-export default function AuthScreen() {
+type AuthScreenProps = {
+	onAuthSuccess?: (token: string) => void;
+};
+
+export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 	const [isLogin, setIsLogin] = useState(true);
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
 	const [idToken, setIdToken] = useState<string | null>(null);
@@ -76,7 +81,16 @@ export default function AuthScreen() {
 				const { IdToken } = data.AuthenticationResult;
 				setIdToken(IdToken);
 				setJwtPayload(decodeJwt(IdToken));
-				setIsAuthenticated(true);
+
+				// Store token
+				await storeAuthToken(IdToken);
+
+				// Call success callback or set local state
+				if (onAuthSuccess) {
+					onAuthSuccess(IdToken);
+				} else {
+					setIsAuthenticated(true);
+				}
 			} else {
 				alert(data.message || 'Authentication failed');
 			}

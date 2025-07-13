@@ -1,9 +1,10 @@
 import { icons } from '@/constants/icons';
 import { images } from '@/constants/images';
+import { useAuth } from '@/contexts/AuthContext';
 import { Image } from 'expo-image';
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { ImageBackground, Text, View } from 'react-native';
+import { Tabs, router } from 'expo-router';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, ImageBackground, Text, View } from 'react-native';
 
 const TabIcon = ({
 	focused,
@@ -37,6 +38,26 @@ const TabIcon = ({
 };
 
 const _layout = () => {
+	const { isAuthenticated, isLoading } = useAuth();
+
+	useEffect(() => {
+		if (!isLoading && !isAuthenticated) {
+			router.replace('/(auth)');
+		}
+	}, [isAuthenticated, isLoading]);
+
+	if (isLoading) {
+		return (
+			<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+				<ActivityIndicator size="large" />
+			</View>
+		);
+	}
+
+	if (!isAuthenticated) {
+		return null;
+	}
+
 	return (
 		<Tabs
 			screenOptions={{

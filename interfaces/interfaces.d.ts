@@ -8,7 +8,7 @@ export interface Movie {
 	original_title: string;
 	overview: string;
 	popularity: number;
-	poster_path string;
+	poster_path: string;
 	release_date: string;
 	video: boolean;
 	vote_average: number;
@@ -73,4 +73,53 @@ export interface MovieDetails {
 interface TrendingCardProps {
 	movie: TrendingMovie;
 	index: number;
+}
+
+// Profile Matcher API Interfaces
+export interface Skill {
+	name: string;
+	level: number;
+}
+
+export interface Profile {
+	user_id: string;
+	name: string;
+	email: string;
+	bio?: string;
+	skills: Skill[];
+	created_at?: string;
+	updated_at?: string;
+}
+
+export interface ProfileDetails extends Profile {
+	// Additional fields that might be included in detailed responses
+	profile_id?: string;
+	metadata?: Record<string, any>;
+}
+
+export interface CreateProfileRequest {
+	user_id: string;
+	name: string;
+	email: string;
+	bio?: string;
+	skills: Skill[];
+}
+
+export interface UpdateProfileRequest {
+	user_id: string;
+	name?: string;
+	email?: string;
+	bio?: string;
+	skills?: Skill[];
+}
+
+export interface ProfileResponse {
+	success: boolean;
+	user_id: string;
+	message: string;
+}
+
+export interface ProfileListResponse {
+	profiles: Profile[];
+	count: number;
 }
