@@ -1,0 +1,577 @@
+<div class="container">
+    <h1>Profile Matcher Auth Test</h1>
+
+    <div class="auth-tabs">
+        <button class="tab-btn active" id="loginTab" onclick="showLogin()">Login</button>
+        <button class="tab-btn" id="signupTab" onclick="showSignup()">Sign Up</button>
+    </div>
+
+    <div class="login-form">
+        <input type="email" id="username" placeholder="Email" />
+        <input type="password" id="password" placeholder="Password" />
+        <button onclick="login()">Login</button>
+    </div>
+    <button onclick="logout()" id="logoutBtn" style="display:none">Logout</button>
+    <div id="result"></div>
+    <div id="tokenInfo" class="token-info" style="display:none"></div>
+
+    <div id="signupForm" style="display:none" class="signup-form">
+        <h2>Sign Up</h2>
+        <!-- Email (built-in) -->
+        <input type="email" 
+               id="signupEmail" 
+               placeholder="Email" 
+               pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
+               title="Enter a valid email address"
+               required />
+
+        <!-- Password -->
+        <input type="password" 
+               id="signupPassword" 
+               placeholder="Password" 
+               pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
+               title="Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character"
+               required />
+
+        <!-- Given Name (required) -->
+        <input type="text" 
+               id="given_name" 
+               placeholder="First Name" 
+               pattern="^[a-zA-Z ]{2,50}$"
+               title="First name should only contain letters and spaces, between 2-50 characters"
+               required />
+
+        <!-- Family Name (required) -->
+        <input type="text" 
+               id="family_name" 
+               placeholder="Last Name" 
+               pattern="^[a-zA-Z ]{2,50}$"
+               title="Last name should only contain letters and spaces, between 2-50 characters"
+               required />
+
+        <!-- Gender (optional) -->
+        <select id="gender">
+            <option value="">Select Gender (Optional)</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+            <option value="other">Other</option>
+        </select>
+
+        <!-- Birthdate (optional) -->
+        <input type="date" 
+               id="birthdate" 
+               placeholder="Birthdate (Optional)"
+               max="2025-12-31"
+               min="1900-01-01" />
+
+        <button onclick="validateAndSignup()" class="signup-btn">Sign Up</button>
+    </div>
+
+    <div id="loginForm">
+        <h2>Login</h2>
+        <input type="email" id="username" placeholder="Email" />
+        <input type="password" id="password" placeholder="Password" />
+        <button onclick="login()">Login</button>
+    </div>
+
+    <button onclick="logout()" id="logoutBtn" style="display:none">Logout</button>
+    <div id="result"></div>
+    <div id="tokenInfo" class="token-info" style="display:none"></div>
+
+    <div id="apiTestButtons" style="display:none" class="api-test-buttons">
+        <h3>Test API Endpoints</h3>
+        <button onclick="testMatchEndpoint()">Test Match Endpoint</button>
+        <div id="apiResponse" class="api-response"></div>
+    </div>
+</div>
+
+<script>
+const COGNITO_CONFIG = {
+    ClientId: '2mig4lgdth8ebo96llg2scil6', // From your cognito_info.txt
+    UserPoolId: 'eu-central-1_0Sn70cSKu'
+};
+
+async function login() {
+    try {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        
+        const params = {
+            AuthFlow: 'USER_PASSWORD_AUTH',
+            ClientId: COGNITO_CONFIG.ClientId,
+            AuthParameters: {
+                USERNAME: username,
+                PASSWORD: password
+            }
+        };
+
+        const response = await fetch(`https://cognito-idp.eu-central-1.amazonaws.com/`, {
+            method: 'POST',
+            headers: {
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth',
+                'Content-Type': 'application/x-amz-json-1.1'
+            },
+            body: JSON.stringify(params)
+        });
+
+        const data = await response.json();
+
+        if (data.AuthenticationResult) {
+            const { IdToken, AccessToken } = data.AuthenticationResult;
+            localStorage.setItem('id_token', IdToken);
+            localStorage.setItem('access_token', AccessToken);
+            showLoggedInState(IdToken);
+
+            // Test API access
+            await testApiAccess();
+        } else {
+            throw new Error(data.message || 'Authentication failed');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        document.getElementById('result').innerHTML = `
+            <p style="color: red;">Error: ${error.message}</p>
+        `;
+    }
+}
+
+async function testApiAccess() {
+    try {
+        const apiUrl = 'https://c0su3lk7ae.execute-api.eu-central-1.amazonaws.com/dev';
+        const idToken = localStorage.getItem('id_token');
+
+        if (!idToken) {
+            throw new Error('No authentication token found');
+        }
+
+        // Test /match endpoint
+        const response = await fetch(`${apiUrl}/match`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userId: 'test-user',
+                matchCriteria: {
+                    ageRange: {
+                        min: 25,
+                        max: 35
+                    },
+                    gender: "female"
+                }
+            })
+        });
+
+        const data = await response.json();
+        console.log('API test response:', data);
+    } catch (error) {
+        console.error('API test error:', error);
+    }
+}
+
+async function showLoggedInState(idToken) {
+    try {
+        const tokenParts = idToken.split('.');
+        const payload = JSON.parse(atob(tokenParts[1]));
+        
+        // Create a formatted display of user attributes
+        const userAttributes = Object.entries(payload)
+            .filter(([key]) => !key.startsWith('aud') && !key.startsWith('iss') && !key.startsWith('token'))
+            .map(([key, value]) => `
+                <div class="attribute-row">
+                    <strong>${key}:</strong> ${value}
+                </div>
+            `).join('');
+
+        document.getElementById('tokenInfo').innerHTML = `
+            <h3>Logged in successfully!</h3>
+            <div class="user-attributes">
+                ${userAttributes}
+            </div>
+            <h4>Raw Token Data:</h4>
+            <pre class="token-data">${JSON.stringify(payload, null, 2)}</pre>
+        `;
+        
+        // Update UI
+        document.querySelector('.login-form').style.display = 'none';
+        document.getElementById('logoutBtn').style.display = 'block';
+        document.getElementById('tokenInfo').style.display = 'block';
+        document.getElementById('apiTestButtons').style.display = 'block'; // Add this line
+    } catch (error) {
+        console.error('Error showing logged in state:', error);
+        document.getElementById('result').innerHTML = `
+            <p style="color: red;">Error showing login state: ${error.message}</p>
+        `;
+    }
+}
+
+function logout() {
+    // Clear stored tokens
+    localStorage.removeItem('id_token');
+    localStorage.removeItem('access_token');
+    
+    // Reset UI
+    document.querySelector('.login-form').style.display = 'block';
+    document.getElementById('logoutBtn').style.display = 'none';
+    document.getElementById('tokenInfo').style.display = 'none';
+    document.getElementById('result').innerHTML = '';
+    document.getElementById('apiTestButtons').style.display = 'none';
+    document.getElementById('apiResponse').innerHTML = '';
+}
+
+// Sign up functions
+async function signup() {
+    try {
+        const email = document.getElementById('signupEmail').value;
+        const password = document.getElementById('signupPassword').value;
+        const given_name = document.getElementById('given_name').value;
+        const family_name = document.getElementById('family_name').value;
+        const gender = document.getElementById('gender').value;
+        const birthdate = document.getElementById('birthdate').value;
+
+        // Log the request data for debugging
+        console.log('Signup Request Data:', {
+            email,
+            given_name,
+            family_name,
+            gender,
+            birthdate
+        });
+
+        // Build user attributes array
+        const userAttributes = [
+            {
+                Name: 'email',
+                Value: email
+            },
+            {
+                Name: 'given_name',
+                Value: given_name
+            },
+            {
+                Name: 'family_name',
+                Value: family_name
+            }
+        ];
+
+        // Add optional attributes if they're provided
+        if (gender) userAttributes.push({ Name: 'gender', Value: gender });
+        if (birthdate) userAttributes.push({ Name: 'birthdate', Value: birthdate });
+
+        const params = {
+            ClientId: COGNITO_CONFIG.ClientId,
+            Username: email,
+            Password: password,
+            UserAttributes: userAttributes
+        };
+
+        console.log('Cognito SignUp params:', JSON.stringify(params, null, 2));
+
+        const response = await fetch('https://cognito-idp.eu-central-1.amazonaws.com/', {
+            method: 'POST',
+            headers: {
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.SignUp',
+                'Content-Type': 'application/x-amz-json-1.1'
+            },
+            body: JSON.stringify(params)
+        });
+
+        const data = await response.json();
+        console.log('Cognito SignUp response:', data);
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Signup failed');
+        }
+
+        if (data.UserConfirmed === false) {
+            // Show verification form
+            document.getElementById('result').innerHTML = `
+                <p style="color: green;">
+                    Successfully signed up! Please check your email for a verification code.
+                    <div class="verify-form">
+                        <input type="text" 
+                               id="verificationCode" 
+                               placeholder="Verification Code" 
+                               pattern="[0-9]{6}"
+                               title="Please enter the 6-digit verification code"
+                               required />
+                        <button onclick="verifyUser('${email}')">Verify Email</button>
+                    </div>
+                </p>
+            `;
+        } else {
+            document.getElementById('result').innerHTML = `
+                <p style="color: green;">
+                    Successfully signed up! You can now login.
+                </p>
+            `;
+            showLogin();
+        }
+    } catch (error) {
+        console.error('Signup error:', error);
+        document.getElementById('result').innerHTML = `
+            <p style="color: red;">Error: ${error.message || 'Failed to sign up. Please try again.'}</p>
+        `;
+    }
+}
+
+async function verifyUser(username) {
+    try {
+        const code = document.getElementById('verificationCode').value;
+
+        const params = {
+            ClientId: COGNITO_CONFIG.ClientId,
+            Username: username,
+            ConfirmationCode: code
+        };
+
+        const response = await fetch('https://cognito-idp.eu-central-1.amazonaws.com/', {
+            method: 'POST',
+            headers: {
+                'X-Amz-Target': 'AWSCognitoIdentityProviderService.ConfirmSignUp',
+                'Content-Type': 'application/x-amz-json-1.1'
+            },
+            body: JSON.stringify(params)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            document.getElementById('result').innerHTML = `
+                <p style="color: green;">
+                    Email verified successfully! You can now login.
+                </p>
+            `;
+            showLogin();
+        }
+    } catch (error) {
+        console.error('Verification error:', error);
+        document.getElementById('result').innerHTML = `
+            <p style="color: red;">Error: ${error.message}</p>
+        `;
+    }
+}
+
+// UI helper functions
+function showLogin() {
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('signupForm').style.display = 'none';
+    document.getElementById('loginTab').classList.add('active');
+    document.getElementById('signupTab').classList.remove('active');
+}
+
+function showSignup() {
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('signupForm').style.display = 'block';
+    document.getElementById('loginTab').classList.remove('active');
+    document.getElementById('signupTab').classList.add('active');
+}
+
+async function validateAndSignup() {
+    try {
+        const email = document.getElementById('signupEmail');
+        const password = document.getElementById('signupPassword');
+        const given_name = document.getElementById('given_name');
+        const family_name = document.getElementById('family_name');
+        const birthdate = document.getElementById('birthdate');
+
+        // Validate email format
+        if (!email.checkValidity()) {
+            throw new Error('Please enter a valid email address');
+        }
+
+        // Validate password requirements
+        if (!password.checkValidity()) {
+            throw new Error('Password must meet all requirements');
+        }
+
+        // Validate given name
+        if (!given_name.checkValidity()) {
+            throw new Error('Please enter a valid first name');
+        }
+
+        // Validate family name
+        if (!family_name.checkValidity()) {
+            throw new Error('Please enter a valid last name');
+        }
+
+        // Validate age if birthdate is provided
+        if (birthdate.value) {
+            const birthdateValue = new Date(birthdate.value);
+            const today = new Date();
+            const age = today.getFullYear() - birthdateValue.getFullYear();
+            if (age < 13) {
+                throw new Error('You must be at least 13 years old to sign up');
+            }
+        }
+
+        // If all validations pass, proceed with signup
+        await signup();
+
+    } catch (error) {
+        document.getElementById('result').innerHTML = `
+            <p style="color: red;">Error: ${error.message}</p>
+        `;
+    }
+}
+
+// Test Match Endpoint
+async function testMatchEndpoint() {
+    try {
+        const apiResponse = await fetch('../terraform/api_endpoint.txt');
+        const apiUrl = (await apiResponse.text()).trim();
+        const idToken = localStorage.getItem('id_token');
+
+        if (!idToken) {
+            throw new Error('You must be logged in to test this endpoint');
+        }
+
+        // Use a test user_id or get from logged-in user info if available
+        const user_id = "test-user-id";
+
+        console.log('Making request to match endpoint...');
+        const response = await fetch(`${apiUrl}/match`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                user_id: user_id
+            })
+        });
+
+        const data = await response.json();
+        console.log('Match endpoint response:', data);
+
+        document.getElementById('apiResponse').innerHTML = `
+            <h4>Match API Response:</h4>
+            <pre class="api-response-data">${JSON.stringify(data, null, 2)}</pre>
+        `;
+    } catch (error) {
+        console.error('Error testing match endpoint:', error);
+        document.getElementById('apiResponse').innerHTML = `
+            <p style="color: red;">Error: ${error.message}</p>
+        `;
+    }
+}
+</script>
+
+<style>
+.login-form {
+    margin: 20px 0;
+}
+.login-form input {
+    display: block;
+    margin: 10px 0;
+    padding: 8px;
+    width: 100%;
+    max-width: 300px;
+}
+.token-info {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f5f5f5;
+    border-radius: 4px;
+}
+
+.token-data {
+    white-space: pre-wrap;
+    background: #fff;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.auth-tabs {
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    padding: 10px 20px;
+    margin-right: 10px;
+    border: none;
+    background: #f0f0f0;
+    cursor: pointer;
+}
+
+.tab-btn.active {
+    background: #007bff;
+    color: white;
+}
+
+.signup-form {
+    margin: 20px 0;
+}
+
+.signup-form input {
+    display: block;
+    margin: 10px 0;
+    padding: 8px;
+    width: 100%;
+    max-width: 300px;
+}
+
+.signup-form select {
+    display: block;
+    margin: 10px 0;
+    padding: 8px;
+    width: 100%;
+    max-width: 300px;
+}
+
+.user-attributes {
+    background: #fff;
+    padding: 15px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.attribute-row {
+    margin: 5px 0;
+    padding: 5px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.verify-form {
+    margin-top: 15px;
+}
+
+.verify-form input {
+    margin-right: 10px;
+    padding: 8px;
+}
+
+.api-test-buttons {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f5f5f5;
+    border-radius: 4px;
+}
+
+.api-test-buttons button {
+    padding: 10px 20px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.api-test-buttons button:hover {
+    background: #0056b3;
+}
+
+.api-response {
+    margin-top: 15px;
+}
+
+.api-response-data {
+    white-space: pre-wrap;
+    background: #fff;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+</style>
